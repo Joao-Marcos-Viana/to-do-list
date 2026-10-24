@@ -64,9 +64,14 @@ class App(tk.Tk):
         self.linhas_tarefas = []
         self.rolar_ao_atualizar = False
         self.editando = None
+        self.janela_atalhos = None
         self.tema = "claro"
+        self.container_com_foco_tab = None
         self.configurar_estilos()
         self.criar_widgets()
+        self.bind_all("<Tab>", self._navegou_com_tab, add="+")
+        self.bind_all("<ButtonPress>", self._clicou_com_mouse, add="+")
+        self.bind_all("<Escape>", self._escapar_edicao, add="+")
         self.carregar()
 
     def configurar_estilos(self):
@@ -93,16 +98,72 @@ class App(tk.Tk):
             "TCombobox",
             padding=(10, 8),
             fieldbackground="#ffffff",
+            background="#ffffff",
             foreground=TEXTO,
+            selectbackground="#ffffff",
+            selectforeground=TEXTO,
             bordercolor=BORDA,
             lightcolor=BORDA,
             darkcolor=BORDA,
+            relief="flat",
+            borderwidth=1,
+            focuscolor="#ffffff",
+            focusthickness=0,
+            focussolid=False,
         )
         estilo.map(
             "TCombobox",
-            bordercolor=[("focus", TEMAS[self.tema]["foco"])],
-            lightcolor=[("focus", TEMAS[self.tema]["foco"])],
-            darkcolor=[("focus", TEMAS[self.tema]["foco"])],
+            fieldbackground=[("readonly", "#ffffff"), ("focus", "#ffffff")],
+            background=[("readonly", "#ffffff"), ("focus", "#ffffff")],
+            foreground=[("readonly", TEXTO), ("focus", TEXTO)],
+            selectbackground=[("readonly", "#ffffff"), ("focus", "#ffffff")],
+            selectforeground=[("readonly", TEXTO), ("focus", TEXTO)],
+        )
+        estilo.configure(
+            "Icon.TButton",
+            padding=0,
+            background="#edf0f6",
+            foreground=TEXTO,
+            borderwidth=0,
+            relief="flat",
+            focusthickness=0,
+            focuscolor="#edf0f6",
+            width=3,
+            font=("Segoe UI Symbol", 11),
+        )
+        estilo.map(
+            "Icon.TButton",
+            background=[("active", "#e1e6f0"), ("pressed", "#d8deea")],
+        )
+        estilo.configure(
+            "IconSave.TButton",
+            padding=0,
+            background=AZUL,
+            foreground="#ffffff",
+            borderwidth=0,
+            relief="flat",
+            focusthickness=0,
+            width=3,
+            font=("Segoe UI Symbol", 11, "bold"),
+        )
+        estilo.map(
+            "IconSave.TButton",
+            background=[("active", AZUL_ESCURO), ("pressed", AZUL_ESCURO)],
+        )
+        estilo.configure(
+            "IconCancel.TButton",
+            padding=0,
+            background="#fff0f0",
+            foreground="#c03948",
+            borderwidth=0,
+            relief="flat",
+            focusthickness=0,
+            width=3,
+            font=("Segoe UI Symbol", 11, "bold"),
+        )
+        estilo.map(
+            "IconCancel.TButton",
+            background=[("active", "#ffe2e3"), ("pressed", "#ffd5d7")],
         )
         estilo.configure(
             "Adicionar.TButton",
@@ -115,7 +176,6 @@ class App(tk.Tk):
         estilo.map(
             "Adicionar.TButton",
             background=[("active", AZUL_ESCURO), ("pressed", AZUL_ESCURO)],
-            bordercolor=[("focus", TEMAS[self.tema]["foco"])],
         )
         estilo.configure(
             "Secundario.TButton",
@@ -128,7 +188,6 @@ class App(tk.Tk):
         estilo.map(
             "Secundario.TButton",
             background=[("active", "#e1e6f0"), ("pressed", "#d8deea")],
-            bordercolor=[("focus", TEMAS[self.tema]["foco"])],
         )
         estilo.configure(
             "Remover.TButton",
@@ -141,7 +200,6 @@ class App(tk.Tk):
         estilo.map(
             "Remover.TButton",
             background=[("active", "#ffe2e3"), ("pressed", "#ffd5d7")],
-            bordercolor=[("focus", TEMAS[self.tema]["foco"])],
         )
         estilo.configure(
             "Mini.TButton",
@@ -154,7 +212,6 @@ class App(tk.Tk):
         estilo.map(
             "Mini.TButton",
             background=[("active", "#e1e6f0"), ("pressed", "#d8deea")],
-            bordercolor=[("focus", TEMAS[self.tema]["foco"])],
         )
         estilo.configure(
             "Minimal.Vertical.TScrollbar",
@@ -203,8 +260,6 @@ class App(tk.Tk):
         self.botao_ajuda.bind("<Button-1>", self._abrir_atalhos_por_evento)
         self.botao_ajuda.bind("<Return>", self._abrir_atalhos_por_evento)
         self.botao_ajuda.bind("<space>", self._abrir_atalhos_por_evento)
-        self.botao_ajuda.bind("<FocusIn>", self._foco_entrou_canvas)
-        self.botao_ajuda.bind("<FocusOut>", self._foco_saiu_canvas)
         self.botao_tema = ttk.Button(
             cabecalho,
             text="Modo escuro",
@@ -213,7 +268,6 @@ class App(tk.Tk):
             takefocus=True,
         )
         self.botao_tema.pack(side="right")
-        self._tornar_acessivel(self.botao_tema)
 
         tk.Label(
             principal,
@@ -247,7 +301,6 @@ class App(tk.Tk):
             "<Return>",
             lambda event: self.adicionar() if event.keysym == "Return" else None,
         )
-        self.entrada.bind("<Escape>", self._escapar_edicao)
         self.botao_salvar = ttk.Button(
             entrada_linha,
             text="Adicionar",
@@ -256,16 +309,14 @@ class App(tk.Tk):
             takefocus=True,
         )
         self.botao_salvar.pack(side="left", padx=(9, 0))
-        self._tornar_acessivel(self.entrada)
-        self._tornar_acessivel(self.botao_salvar)
         self.botao_cancelar = ttk.Button(
             entrada_linha,
-            text="Cancelar",
-            style="Secundario.TButton",
+            text="×",
+            style="IconCancel.TButton",
             command=self.cancelar_edicao,
             takefocus=True,
+            width=3,
         )
-        self._tornar_acessivel(self.botao_cancelar)
         self.entrada.focus_set()
 
         prioridade_linha = tk.Frame(principal, bg=FUNDO)
@@ -286,7 +337,7 @@ class App(tk.Tk):
         )
         self.seletor_prioridade.set(PRIORIDADE_PADRAO)
         self.seletor_prioridade.pack(side="left")
-        self._tornar_acessivel(self.seletor_prioridade)
+        self._configurar_popdown_prioridade()
         self.bind_all("<Control-Up>", self._aumentar_prioridade)
         self.bind_all("<Control-Down>", self._diminuir_prioridade)
 
@@ -406,7 +457,6 @@ class App(tk.Tk):
             takefocus=True,
         )
         botao_concluir.pack(side="left")
-        self._tornar_acessivel(botao_concluir)
         botao_remover = ttk.Button(
             acoes,
             text="Remover",
@@ -415,7 +465,6 @@ class App(tk.Tk):
             takefocus=True,
         )
         botao_remover.pack(side="right")
-        self._tornar_acessivel(botao_remover)
 
     def indice_selecionado(self):
         return self.selecao
@@ -425,22 +474,19 @@ class App(tk.Tk):
         self.mostrar_atalhos()
         return "break"
 
-    def _foco_entrou_canvas(self, event):
-        event.widget.configure(
-            highlightthickness=2,
-            highlightbackground=TEMAS[self.tema]["foco"],
-        )
-
-    def _foco_saiu_canvas(self, event):
-        event.widget.configure(highlightthickness=0)
-
     def _escapar_edicao(self, event):
-        if event.keysym == "Escape":
+        if event.keysym == "Escape" and self.editando is not None:
             self.cancelar_edicao()
             return "break"
 
     def mostrar_atalhos(self):
+        if self.janela_atalhos is not None and self.janela_atalhos.winfo_exists():
+            self.janela_atalhos.deiconify()
+            self.janela_atalhos.lift()
+            self.janela_atalhos.focus_set()
+            return
         guia = tk.Toplevel(self)
+        self.janela_atalhos = guia
         guia.title("Guia de atalhos")
         guia.transient(self)
         guia.resizable(False, False)
@@ -490,13 +536,24 @@ class App(tk.Tk):
             conteudo,
             text="Fechar",
             style="Secundario.TButton",
-            command=guia.destroy,
+            command=self._fechar_atalhos,
         )
         botao_fechar.pack(anchor="e", pady=(14, 0))
-        self._tornar_acessivel(botao_fechar)
         botao_fechar.focus_set()
-        guia.bind("<Escape>", lambda event: event.widget.destroy())
+        guia.protocol("WM_DELETE_WINDOW", self._fechar_atalhos)
+        guia.bind("<Escape>", self._fechar_atalhos_por_evento)
         guia.after_idle(lambda: self._centralizar_janela(guia))
+
+    def _fechar_atalhos(self):
+        guia = self.janela_atalhos
+        self.janela_atalhos = None
+        if guia is not None and guia.winfo_exists():
+            guia.destroy()
+
+    def _fechar_atalhos_por_evento(self, event):
+        if event.keysym == "Escape":
+            self._fechar_atalhos()
+            return "break"
 
     def _centralizar_janela(self, janela):
         janela.update_idletasks()
@@ -504,47 +561,78 @@ class App(tk.Tk):
         y = self.winfo_rooty() + (self.winfo_height() - janela.winfo_height()) // 2
         janela.geometry(f"+{x}+{y}")
 
-    def _tornar_acessivel(self, widget):
-        widget.bind("<FocusIn>", self._foco_entrou, add="+")
-        widget.bind("<FocusOut>", self._foco_saiu, add="+")
+    def _navegou_com_tab(self, event):
+        if event.keysym == "Tab":
+            self.after_idle(self._atualizar_foco_tab)
 
-    def _foco_entrou(self, event):
-        recipiente = event.widget.master
-        if isinstance(recipiente, tk.Frame):
-            cor_foco = TEMAS[self.tema]["foco"]
-            recipiente.configure(
-                highlightthickness=2,
-                highlightbackground=cor_foco,
-                highlightcolor=cor_foco,
-            )
-
-    def _foco_saiu(self, event):
-        recipiente = event.widget.master
-        if isinstance(recipiente, tk.Frame):
-            self.after_idle(lambda: self._limpar_foco_se_inativo(recipiente))
-
-    def _foco_linha_entrou(self, event):
-        cor_foco = TEMAS[self.tema]["foco"]
-        event.widget.configure(
-            highlightthickness=2,
-            highlightbackground=cor_foco,
-            highlightcolor=cor_foco,
-        )
-
-    def _foco_linha_saiu(self, event):
-        linha = event.widget
-        self.after_idle(lambda: self._limpar_foco_se_inativo(linha))
-
-    def _limpar_foco_se_inativo(self, recipiente):
-        foco = self.focus_get()
+    def _atualizar_foco_tab(self):
+        try:
+            foco = self.focus_get()
+        except (KeyError, tk.TclError):
+            foco = None
+        self._remover_destaque_foco_tab()
         while foco is not None:
-            if foco is recipiente:
+            if isinstance(foco, (tk.Frame, tk.Canvas)):
+                self.container_com_foco_tab = foco
+                try:
+                    foco.configure(
+                        highlightthickness=2,
+                        highlightbackground=TEMAS[self.tema]["foco"],
+                        highlightcolor=TEMAS[self.tema]["foco"],
+                    )
+                except tk.TclError:
+                    self.container_com_foco_tab = None
                 return
             foco = getattr(foco, "master", None)
-        try:
-            recipiente.configure(highlightthickness=0)
-        except tk.TclError:
-            pass
+
+    def _clicou_com_mouse(self, event):
+        if event.type == tk.EventType.ButtonPress:
+            self._remover_destaque_foco_tab()
+
+    def _remover_destaque_foco_tab(self):
+        recipiente = self.container_com_foco_tab
+        self.container_com_foco_tab = None
+        if recipiente is not None:
+            try:
+                recipiente.configure(highlightthickness=0)
+            except tk.TclError:
+                pass
+
+    def _configurar_popdown_prioridade(self):
+        cores = TEMAS[self.tema]
+        self.option_add("*TCombobox*Listbox.background", cores["entrada"])
+        self.option_add("*TCombobox*Listbox.foreground", cores["texto"])
+        self.option_add("*TCombobox*Listbox.selectBackground", cores["selecao"])
+        self.option_add("*TCombobox*Listbox.selectForeground", cores["texto"])
+        caminho_popdown = self.tk.call(
+            "ttk::combobox::PopdownWindow", self.seletor_prioridade._w
+        )
+        filhos_popdown = self.tk.call("winfo", "children", caminho_popdown)
+        if not filhos_popdown:
+            return
+        filhos_frame = self.tk.call("winfo", "children", filhos_popdown[0])
+        for filho in filhos_frame:
+            if self.tk.call("winfo", "class", filho) == "Listbox":
+                self.tk.call(
+                    filho,
+                    "configure",
+                    "-background",
+                    cores["entrada"],
+                    "-foreground",
+                    cores["texto"],
+                    "-selectbackground",
+                    cores["selecao"],
+                    "-selectforeground",
+                    cores["texto"],
+                    "-highlightbackground",
+                    cores["borda"],
+                    "-highlightcolor",
+                    cores["foco"],
+                    "-highlightthickness",
+                    0,
+                    "-borderwidth",
+                    0,
+                )
 
     def _aumentar_prioridade(self, event):
         return self._alterar_prioridade_pelo_evento(event, 1)
@@ -664,22 +752,43 @@ class App(tk.Tk):
         estilo.map(
             "Adicionar.TButton",
             background=[("active", AZUL_ESCURO), ("pressed", AZUL_ESCURO)],
-            bordercolor=[("focus", cores["foco"])],
         )
         estilo.configure(
             "TCombobox",
             fieldbackground=cores["entrada"],
+            background=cores["entrada"],
             foreground=cores["texto"],
+            selectbackground=cores["entrada"],
+            selectforeground=cores["texto"],
+            focuscolor=cores["entrada"],
             bordercolor=cores["borda"],
             lightcolor=cores["borda"],
             darkcolor=cores["borda"],
         )
         estilo.map(
             "TCombobox",
-            bordercolor=[("focus", cores["foco"])],
-            lightcolor=[("focus", cores["foco"])],
-            darkcolor=[("focus", cores["foco"])],
+            fieldbackground=[
+                ("readonly", cores["entrada"]),
+                ("focus", cores["entrada"]),
+            ],
+            background=[
+                ("readonly", cores["entrada"]),
+                ("focus", cores["entrada"]),
+            ],
+            foreground=[
+                ("readonly", cores["texto"]),
+                ("focus", cores["texto"]),
+            ],
+            selectbackground=[
+                ("readonly", cores["entrada"]),
+                ("focus", cores["entrada"]),
+            ],
+            selectforeground=[
+                ("readonly", cores["texto"]),
+                ("focus", cores["texto"]),
+            ],
         )
+        self._configurar_popdown_prioridade()
         estilo.configure(
             "Secundario.TButton",
             background=cores["botao"],
@@ -691,7 +800,31 @@ class App(tk.Tk):
                 ("active", cores["selecao"]),
                 ("pressed", cores["borda"]),
             ],
-            bordercolor=[("focus", cores["foco"])],
+        )
+        estilo.configure(
+            "Icon.TButton",
+            background=cores["botao"],
+            foreground=cores["texto"],
+            focuscolor=cores["botao"],
+        )
+        estilo.map(
+            "Icon.TButton",
+            background=[
+                ("active", cores["selecao"]),
+                ("pressed", cores["borda"]),
+            ],
+        )
+        estilo.configure(
+            "IconCancel.TButton",
+            background="#3b2830" if self.tema == "escuro" else "#fff0f0",
+            foreground="#ff9eaa" if self.tema == "escuro" else "#c03948",
+        )
+        estilo.map(
+            "IconCancel.TButton",
+            background=[
+                ("active", "#523440" if self.tema == "escuro" else "#ffe2e3"),
+                ("pressed", "#63404c" if self.tema == "escuro" else "#ffd5d7"),
+            ],
         )
         estilo.configure(
             "Mini.TButton",
@@ -704,7 +837,6 @@ class App(tk.Tk):
                 ("active", cores["selecao"]),
                 ("pressed", cores["borda"]),
             ],
-            bordercolor=[("focus", cores["foco"])],
         )
         estilo.configure(
             "Remover.TButton",
@@ -717,7 +849,6 @@ class App(tk.Tk):
                 ("active", "#523440" if self.tema == "escuro" else "#ffe2e3"),
                 ("pressed", "#63404c" if self.tema == "escuro" else "#ffd5d7"),
             ],
-            bordercolor=[("focus", cores["foco"])],
         )
         estilo.configure(
             "Minimal.Vertical.TScrollbar",
@@ -738,7 +869,7 @@ class App(tk.Tk):
         self.seletor_prioridade.set(
             tarefa.get("prioridade", PRIORIDADE_PADRAO)
         )
-        self.botao_salvar.configure(text="Salvar edição")
+        self.botao_salvar.configure(text="✓", style="IconSave.TButton")
         self.botao_cancelar.pack(side="left", padx=(6, 0))
         self._selecionar_tarefa(indice)
         self.entrada.focus_set()
@@ -749,7 +880,7 @@ class App(tk.Tk):
         self.editando = None
         self.entrada.delete(0, "end")
         self.seletor_prioridade.set(PRIORIDADE_PADRAO)
-        self.botao_salvar.configure(text="Adicionar")
+        self.botao_salvar.configure(text="Adicionar", style="Adicionar.TButton")
         self.botao_cancelar.pack_forget()
         self.rotulo_formulario.configure(text="NOVA TAREFA")
         self.entrada.focus_set()
@@ -841,7 +972,7 @@ class App(tk.Tk):
         self.editando = None
         self.entrada.delete(0, "end")
         self.seletor_prioridade.set(PRIORIDADE_PADRAO)
-        self.botao_salvar.configure(text="Adicionar")
+        self.botao_salvar.configure(text="Adicionar", style="Adicionar.TButton")
         self.botao_cancelar.pack_forget()
         self.rotulo_formulario.configure(text="NOVA TAREFA")
         self.salvar()
@@ -915,8 +1046,6 @@ class App(tk.Tk):
                 highlightthickness=0,
             )
             linha.pack(fill="x", padx=(0, 5), pady=2)
-            linha.bind("<FocusIn>", self._foco_linha_entrou)
-            linha.bind("<FocusOut>", self._foco_linha_saiu)
             marca = "✔" if tarefa["feita"] else "○"
             cor_tarefa = (
                 "#b0bacb" if tarefa["feita"] and self.tema == "escuro"
@@ -952,12 +1081,11 @@ class App(tk.Tk):
             botao_editar = ttk.Button(
                 linha,
                 text="⋮",
-                style="Mini.TButton",
+                style="Icon.TButton",
                 command=lambda i=indice: self.editar_tarefa(i),
                 takefocus=True,
             )
             botao_editar.pack(side="right", padx=(4, 0))
-            self._tornar_acessivel(botao_editar)
             linha.bind(
                 "<Button-1>",
                 lambda event, i=indice: self._selecionar_tarefa(i, event.widget),
